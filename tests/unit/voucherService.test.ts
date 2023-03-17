@@ -48,9 +48,74 @@ describe("createVoucher test suite", () => {
 });
 
 describe("applyVoucher test suite", () => {
-    it("should not apply discount for invalid voucher")
+  it("should not apply discount for invalid voucher", async () => {
+    const code = "aaa";
+    const amount = 100;
 
-    it("should not apply discount for values below 100")
+    jest
+      .spyOn(voucherRepository, "getVoucherByCode")
+      .mockResolvedValueOnce(undefined);
 
-    it("should apply discount for values above 100 with a valid voucher")
-})
+    const promise = voucherService.applyVoucher(code, amount);
+
+    expect(promise).rejects.toEqual({
+      message: "Voucher does not exist.",
+      type: "conflict",
+    });
+  });
+
+  it("should not apply discount for used vouchers", async () => {
+    const code = "aaa";
+    const discount = 10;
+    const amount = 100;
+
+    jest
+      .spyOn(voucherRepository, "getVoucherByCode")
+      .mockResolvedValueOnce({ id: 1, code, discount, used: true });
+
+    const order = await voucherService.applyVoucher(code, amount);
+
+    expect(order.amount).toBe(amount);
+    expect(order.discount).toBe(discount);
+    expect(order.finalAmount).toBe(amount);
+    expect(order.applied).toBe(false);
+  });
+
+  it("should not apply discount for values below 100", async () => {
+    const code = "aaa";
+    const discount = 10;
+    const amount = 99;
+
+    jest
+      .spyOn(voucherRepository, "getVoucherByCode")
+      .mockResolvedValueOnce({ id: 1, code, discount, used: false });
+
+    const order = await voucherService.applyVoucher(code, amount);
+
+    expect(order.amount).toBe(amount);
+    expect(order.discount).toBe(discount);
+    expect(order.finalAmount).toBe(amount);
+    expect(order.applied).toBe(false);
+  });
+
+  it("should apply discount for values equal to or above 100 with a valid voucher", async () => {
+    const code = "aaa";
+    const discount = 10;
+    const amount = 100;
+
+    jest
+      .spyOn(voucherRepository, "getVoucherByCode")
+      .mockResolvedValueOnce({ id: 1, code, discount, used: false });
+
+    jest
+      .spyOn(voucherRepository, "useVoucher")
+      .mockImplementation((): any => {});
+
+    const order = await voucherService.applyVoucher(code, amount);
+
+    expect(order.amount).toBe(amount);
+    expect(order.discount).toBe(discount);
+    expect(order.finalAmount).toBe(amount - amount * (discount / 100));
+    expect(order.applied).toBe(true);
+  });
+});
